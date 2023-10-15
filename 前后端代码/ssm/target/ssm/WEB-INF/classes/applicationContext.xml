@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:aop="http://www.springframework.org/schema/aop"
+    xmlns:tx="http://www.springframework.org/schema/tx" xmlns:jdbc="http://www.springframework.org/schema/jdbc"
+    xmlns:context="http://www.springframework.org/schema/context"
+    xmlns:mvc="http://www.springframework.org/schema/mvc"
+    xsi:schemaLocation="
+     http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-3.0.xsd
+     http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd
+     http://www.springframework.org/schema/jdbc http://www.springframework.org/schema/jdbc/spring-jdbc-3.0.xsd
+     http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx-3.0.xsd
+     http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop-3.0.xsd
+     http://www.springframework.org/schema/mvc http://www.springframework.org/schema/mvc/spring-mvc.xsd">
+    <!-- 配置service层次的包的位置 -->
+    <!-- 它的作用是隐式地向 Spring 容器注册  
+	- AutowiredAnnotationBeanPostProcessor、
+	- CommonAnnotationBeanPostProcessor、
+	- PersistenceAnnotationBeanPostProcessor、
+	- RequiredAnnotationBeanPostProcessor 这4个BeanPostProcessor。 
+	也可以自己通过bean进行注册
+	-->
+    <context:annotation-config />
+    <context:component-scan base-package="service" />
+    <!-- 配置jdbc的基本信息 -->
+    <!-- <bean id="dataSource" class="org.springframework.jdbc.datasource.DriverManagerDataSource"> 
+     driver
+      <property name="driverClassName"> 
+          <value>com.mysql.jdbc.Driver</value> 
+      </property> 
+      连接串
+      <property name="url"> 
+          <value>jdbc:mysql://localhost:3306/javastruct?characterEncoding=UTF-8</value> 
+      </property> 
+      用户名
+      <property name="username"> 
+          <value>root</value> 
+      </property> 
+      密码
+      <property name="password"> 
+          <value>123456</value> 
+      </property>    
+    </bean> -->
+
+    <context:property-placeholder location="classpath:db.properties" />
+    <!-- DruidDataSource 进行配置 -->
+    <bean id="dataSource1" class="com.alibaba.druid.pool.DruidDataSource" init-method="init" destroy-method="close">
+        <!-- 基本属性 url、user、password -->
+        <property name="url" value="${jdbc.url}" />
+        <property name="username" value="${jdbc.username}" />
+        <property name="password" value="${jdbc.password}" />
+        <property name="driverClassName" value="${jdbc.driver}" />
+
+        <!-- 配置初始化大小、最小、最大 -->
+        <property name="initialSize" value="3" />
+        <property name="minIdle" value="3" />
+        <property name="maxActive" value="20" />
+
+        <!-- 配置获取连接等待超时的时间 -->
+        <property name="maxWait" value="60000" />
+
+        <!-- 配置间隔多久才进行一次检测，检测需要关闭的空闲连接，单位是毫秒 -->
+        <property name="timeBetweenEvictionRunsMillis" value="60000" />
+
+        <!-- 配置一个连接在池中最小生存的时间，单位是毫秒 -->
+        <property name="minEvictableIdleTimeMillis" value="300000" />
+
+        <property name="validationQuery" value="SELECT 1" />
+        <property name="testWhileIdle" value="true" />
+        <property name="testOnBorrow" value="false" />
+        <property name="testOnReturn" value="false" />
+
+        <!-- 打开PSCache，并且指定每个连接上PSCache的大小 -->
+        <property name="poolPreparedStatements" value="true" />
+        <property name="maxPoolPreparedStatementPerConnectionSize" value="20" />
+    </bean>
+
+     <!-- mybatis 的配置文件 将pojo和mapper对应起来 -->
+    <bean id="sqlSession" class="org.mybatis.spring.SqlSessionFactoryBean">
+       	<!-- 定义pojo的位置 也就是自己定义类型的位置 -->
+        <property name="typeAliasesPackage" value="pojo" />
+        <!-- 使用的数据源，数据库连接的信息 -->
+        <property name="dataSource" ref="dataSource1"/>
+         <!-- mapper寻找xml文件 -->
+        <property name="mapperLocations" value="classpath:/mapper/*.xml"/>
+        <!-- 添加pageHelper插件 -->
+        <property name="plugins">
+            <array>
+              <bean class="com.github.pagehelper.PageInterceptor">
+                <property name="properties">
+                  <!--使用下面的方式配置参数，一行配置一个 -->
+                  <value>
+                  </value>
+                </property>
+              </bean>
+            </array>
+          </property>
+
+    </bean>
+ 	<!-- mapper 配置包 -->
+    <bean class="org.mybatis.spring.mapper.MapperScannerConfigurer">
+        <property name="basePackage" value="mapper"/>
+    </bean>
+    <!-- 事务的配置  注解方式-->
+    <!-- <tx:annotation-driven transaction-manager="transactionManager"/> -->
+
+    <bean id="transactionManager" class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+        <property name="dataSource" ref="dataSource1" />
+    </bean>
+
+     <!-- 事务配置 xml方式 aop -->
+    <tx:advice id="txadvice" transaction-manager="transactionManager">
+        <tx:attributes>
+            <tx:method name="add*" propagation="REQUIRED" rollback-for="Exception" />
+            <tx:method name="del*" propagation="REQUIRED" rollback-for="Exception"/>
+            <tx:method name="edit*" propagation="REQUIRED" rollback-for="Exception" />
+            <tx:method name="update*" propagation="REQUIRED" rollback-for="Exception"/>
+            <tx:method name="list*" propagation="REQUIRED" rollback-for="Exception"/>
+        </tx:attributes>
+    </tx:advice>
+
+    <aop:config>
+        <aop:pointcut id="serviceMethod" expression="execution(* service.*.*(..))"/>
+         <!-- |第一个 * —— 通配 随便率性返回值类型|
+|第二个 * —— 通配包com.evan.crm.service下的随便率性class|
+|第三个 * —— 通配包com.evan.crm.service下的随便率性class的随便率性办法|
+|第四个 .. —— 通配 办法可以有0个或多个参数|  -->   <aop:advisor pointcut-ref="serviceMethod" advice-ref="txadvice"/>
+    </aop:config>
+
+
+    <aop:config>
+        <aop:aspect id="LogAspect" ref="logger">
+            <aop:pointcut expression="execution(* mapper.*.*(..))" id="pc"></aop:pointcut>
+            <aop:before method="beforPrint" pointcut-ref="pc" />
+            <aop:after-returning method="afterruningPrint" pointcut-ref="pc" returning="res"/>
+            <aop:after-throwing method="throwPrint" pointcut-ref="pc" throwing="tr" />
+            <aop:after method="afterruning" pointcut-ref="pc"/>
+            <!--<aop:around method="around" pointcut-ref="pc"/>-->
+        </aop:aspect>
+    </aop:config>
+    <bean id="logger" class="util.Logger"></bean>
+
+    <bean id="multipartResolver"
+          class="org.springframework.web.multipart.commons.CommonsMultipartResolver">
+        <!-- 设置上传文件的最大尺寸为5MB -->
+        <property name="maxUploadSize">
+            <value>5242880</value>
+        </property>
+        <property name="defaultEncoding">
+            <value>UTF-8</value>
+        </property>
+    </bean>
+</beans>
